@@ -1,6 +1,4 @@
-# clanzi
-
-**Turn your Ulanzi Vibe Key into a Linux shortcut controller.**
+# clanzi - Turn your Ulanzi Vibe Key into a Linux shortcut controller.**
 
 [中文](README.zh.md) · [Get started](#get-started) · [Configuration](docs/configuration.md) · [Troubleshooting](docs/troubleshooting.md) · [Contribute](CONTRIBUTING.md)
 

@@ -1,6 +1,4 @@
-# clanzi
-
-**把 Ulanzi Vibe Key 变成你的 Linux 快捷键控制器。**
+# clanzi - 把 Ulanzi Vibe Key 变成你的 Linux 快捷键控制器。**
 
 [English](README.md) · [快速开始](#快速开始) · [配置说明](docs/configuration.zh.md) · [故障排查](docs/troubleshooting.zh.md) · [参与贡献](CONTRIBUTING.zh.md)
 
