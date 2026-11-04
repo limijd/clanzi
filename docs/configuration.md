@@ -24,6 +24,14 @@ Rotary actions use 40 ms taps with a minimum 10 ms gap, in a FIFO with up to 32 
 
 Pause, sleep, mapping replacement, quit, disconnection, offline/unknown status, and output/heartbeat faults release owned keys and clear queued actions. Failed releases remain cleanup debt and require successful cleanup and Retry before forwarding resumes. Observed held buttons must be released before resynchronization. If a release report is lost while the device remains online, Pause or Quit releases a stuck shortcut.
 
+## Battery detection
+
+The top-right indicator and **Settings → Connection** show battery percentage and charging status. Levels at or below 20% appear orange. Hover for voltage and reading age; Settings shows these details directly. Percentage comes from the device, never from a voltage estimate. If percentage is unknown, a valid voltage is displayed instead; otherwise the value is “—”. Unknown charging status is identified in the details.
+
+A connected, online device is queried immediately and then every 20 seconds, even without a saved keymap. Each reply has a 1-second deadline without blocking key processing or heartbeats. A failed read clears the old value and retries next cycle, without stopping key forwarding. Offline/unknown status, disconnection, connection retry, pause, sleep and quit clear readings. Pausing stops active battery queries; readings resume after the device returns online.
+
+The read-only request is `01 01 02 01`, with reply prefix `81 01 02 11`: plaintext offsets 4–5 contain little-endian millivolts, 6–7 contain little-endian percentage, and offset 10 indicates charging (0/1). Percentages outside 0–100, voltages of 0 or 65535, and charging values other than 0/1 are unknown. Decoding follows Olanzi's captured AU05 reports and open-vibekey's passive parser; automated tests do not establish real-device validation in this project. Demo mode uses simulated battery data and does not access hardware.
+
 ## JSON compatibility
 
 Both supported versions use the `olanzi-cross-platform-keymap` format, device `AU05`, and exactly six bindings. Files are limited to 64 KiB. Unknown or duplicate fields, invalid usages/modifiers, and unsupported versions are rejected as a whole. Modifier order is Ctrl, Shift, Alt, Super.

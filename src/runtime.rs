@@ -164,6 +164,9 @@ pub struct Snapshot {
     pub queued: usize,
     pub cleanup_pending: bool,
     pub query_completed_ms: Option<u64>,
+    pub battery: Option<protocol::Battery>,
+    pub battery_age_ms: Option<u64>,
+    pub battery_error: Option<Issue>,
     pub demo: bool,
 }
 
@@ -192,6 +195,11 @@ pub struct Runtime {
     query_deadline: Option<u64>,
     query_completed: Option<u64>,
     query_failure: &'static str,
+    battery: Option<protocol::Battery>,
+    battery_updated: Option<u64>,
+    battery_error: Option<Issue>,
+    battery_deadline: Option<u64>,
+    next_battery: u64,
     next_heartbeat: u64,
     next_permission: u64,
     output_ready: bool,
@@ -231,6 +239,11 @@ impl Runtime {
             query_deadline: None,
             query_completed: None,
             query_failure: "query pending",
+            battery: None,
+            battery_updated: None,
+            battery_error: None,
+            battery_deadline: None,
+            next_battery: 0,
             next_heartbeat: 0,
             next_permission: 0,
             output_ready: false,
@@ -257,6 +270,7 @@ impl Runtime {
         self.takeover = false;
     }
     fn disconnected(&mut self, issue: Issue, now: u64) {
+        self.clear_battery();
         // 已拔出的接收器无法交还；仍清理输出，但不把正常拔插锁成交接故障。
         if issue.code == "DEVICE_MISSING" {
             self.connected = false;
@@ -276,6 +290,7 @@ impl Runtime {
         self.config_error = None;
     }
     pub fn pause(&mut self, paused: bool, now: u64) {
+        self.clear_battery();
         self.stop(now);
         self.paused = paused;
         self.query_deadline = None;
@@ -287,6 +302,7 @@ impl Runtime {
         }
     }
     pub fn sleep(&mut self, sleeping: bool, now: u64) {
+        self.clear_battery();
         self.stop(now);
         self.sleeping = sleeping;
         self.transport.close();
@@ -297,6 +313,7 @@ impl Runtime {
         self.next_discovery = now;
     }
     pub fn retry(&mut self, now: u64) {
+        self.clear_battery();
         self.stop(now);
         // 先恢复输出并清偿释放债务，才能解除故障锁。
         match self
@@ -359,6 +376,38 @@ impl Runtime {
             Err(e) => self.disconnected(e, now),
         }
     }
+    fn clear_battery(&mut self) {
+        self.battery = None;
+        self.battery_updated = None;
+        self.battery_error = None;
+        self.battery_deadline = None;
+        self.next_battery = 0;
+    }
+    fn battery_failed(&mut self, detail: impl ToString) {
+        self.battery = None;
+        self.battery_updated = None;
+        self.battery_deadline = None;
+        self.battery_error = Some(Issue::new("BATTERY_READ_FAILED", "battery", detail));
+    }
+    fn refresh_battery(&mut self, now: u64) {
+        if !self.connected || self.online != Online::Online || self.paused {
+            return;
+        }
+        if self
+            .battery_deadline
+            .is_some_and(|deadline| now >= deadline)
+        {
+            self.battery_failed("battery query timed out");
+        }
+        if now >= self.next_battery && self.battery_deadline.is_none() {
+            self.next_battery = now + 20_000;
+            // Telemetry failures must not interrupt key forwarding or heartbeat scheduling.
+            match self.transport.send(protocol::BATTERY_QUERY) {
+                Ok(()) => self.battery_deadline = Some(now + 1000),
+                Err(e) => self.battery_failed(e.detail),
+            }
+        }
+    }
     pub fn receive(&mut self, report: &[u8], now: u64) {
         match protocol::decode(report).and_then(|f| protocol::parse(&f)) {
             Ok(Event::Status(status)) if self.query_deadline.is_some() => {
@@ -375,8 +424,21 @@ impl Runtime {
                     ""
                 };
                 if status != Some(true) {
+                    self.clear_battery();
                     self.stop(now);
                 }
+            }
+            Ok(Event::Battery(battery))
+                if self.connected
+                    && self.online == Online::Online
+                    && !self.paused
+                    && !self.sleeping
+                    && !self.quitting =>
+            {
+                self.battery = Some(battery);
+                self.battery_updated = Some(now);
+                self.battery_error = None;
+                self.battery_deadline = None;
             }
             Ok(Event::Control { index, down }) => {
                 self.last_activity = now;
@@ -476,6 +538,7 @@ impl Runtime {
             self.query_completed = Some(now);
             self.online = Online::Unknown;
             self.query_failure = "status query timed out";
+            self.clear_battery();
             self.stop(now);
         }
         if !self.paused && now >= self.next_query && self.query_deadline.is_none() {
@@ -525,8 +588,10 @@ impl Runtime {
                 self.stop(now);
             }
         }
+        self.refresh_battery(now);
     }
     pub fn quit(&mut self, now: u64) {
+        self.clear_battery();
         self.quitting = true;
         self.stop(now);
     }
@@ -534,6 +599,7 @@ impl Runtime {
         self.scheduler.cancel(self.output.as_mut(), now).is_ok()
     }
     pub fn close(&mut self) {
+        self.clear_battery();
         self.transport.close();
         self.output.close();
     }
@@ -598,6 +664,11 @@ impl Runtime {
             queued: self.scheduler.queued(),
             cleanup_pending: self.scheduler.debt() && self.fault.is_some(),
             query_completed_ms: self.query_completed,
+            battery: self.battery.clone(),
+            battery_age_ms: self
+                .battery_updated
+                .map(|updated| now.saturating_sub(updated)),
+            battery_error: self.battery_error.clone(),
             demo: self.demo,
         }
     }

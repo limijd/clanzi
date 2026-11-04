@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import { readFile, mkdir } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import assert from 'node:assert/strict';
+import { emptyMap } from '../ui/domain.ts';
 
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE, args: ['--no-sandbox'] });
 const errors = [];
@@ -23,6 +24,7 @@ async function waitState(predicate) {
 try {
   await page.goto('http://clanzi.test');
   await page.getByRole('heading', { name: 'Make every control your own.' }).waitFor();
+  await page.getByLabel('Battery: 80%', { exact: true }).waitFor();
   const save = page.getByRole('button', { name: 'Save to computer', exact: true });
   assert(await save.isEnabled());
   assert.equal(await page.getByRole('group', { name: 'Button behavior' }).count(), 0);
@@ -47,6 +49,11 @@ try {
   assert.equal(await page.getByRole('group', { name: 'Button behavior' }).count(), 0);
   await page.getByRole('button', { name: 'Top key: Ctrl + C', exact: true }).click();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Pause forwarding', exact: true }).click();
+  await page.getByLabel('Battery: —', { exact: true }).waitFor();
+  await page.getByText('Battery checks are paused.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Resume forwarding', exact: true }).click();
+  await page.getByLabel('Battery: 80%', { exact: true }).waitFor();
   await page.getByRole('button', { name: '简体中文', exact: true }).click();
   await page.getByRole('button', { name: '键位', exact: true }).waitFor();
   await page.getByRole('button', { name: '键位', exact: true }).click();
@@ -85,6 +92,50 @@ try {
   // Tab 导航必须到达可操作元素；不依赖鼠标才能保存。
   await page.keyboard.press('Tab');
   assert(await page.evaluate(() => ['BUTTON', 'INPUT', 'A', 'SUMMARY'].includes(document.activeElement.tagName)));
+  // Inject native snapshots to cover telemetry states without hardware access.
+  const fixture = {
+    draft: emptyMap(), saved: null, language: 'en', saving: false, dirty: false, quit_prompt: false, exited: false, error: null, notice: null,
+    runtime: { state: 'configuration', connected: true, online: 'online', paused: false, forwarding: false, synchronizing: false, resync_required: false, issues: [], queued: 0, cleanup_pending: false, query_completed_ms: 0, demo: true, battery: null, battery_age_ms: null, battery_error: null },
+  };
+  await page.addInitScript(snapshot => {
+    window.__batterySnapshot = snapshot;
+    window.__TAURI__ = { core: { invoke: async command => {
+      if (command !== 'snapshot') throw Error('Unexpected native command');
+      return structuredClone(window.__batterySnapshot);
+    } } };
+  }, fixture);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.reload();
+  await page.getByLabel('Battery: —', { exact: true }).waitFor();
+  const cases = [
+    [{ percentage: 10, millivolts: 3318, charging: true }, '10% · Charging', true],
+    [{ percentage: 0, millivolts: 3300, charging: false }, '0%', true],
+    [{ percentage: 100, millivolts: 4200, charging: false }, '100%', false],
+    [{ percentage: null, millivolts: 3549, charging: null }, '3.55 V', false],
+    [{ percentage: null, millivolts: null, charging: null }, '—', false],
+  ];
+  for (const [battery, label, low] of cases) {
+    await page.evaluate(battery => Object.assign(window.__batterySnapshot.runtime, { battery, battery_age_ms: 5000 }), battery);
+    await page.getByLabel(`Battery: ${label}`, { exact: true }).waitFor();
+    assert.equal(await page.locator('.battery-pill').evaluate(el => el.classList.contains('low')), low);
+    assert((await page.locator('.battery-pill').getAttribute('title')).includes('Updated 5s ago'));
+  }
+  await page.evaluate(() => Object.assign(window.__batterySnapshot.runtime, { battery: null, battery_error: { code: 'BATTERY_READ_FAILED', area: 'battery', detail: 'timeout' } }));
+  await page.waitForFunction(() => document.querySelector('.battery-pill')?.title.includes('could not be read'));
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByText('Battery could not be read. Retrying automatically; key forwarding is unaffected.', { exact: true }).waitFor();
+  await page.evaluate(() => {
+    window.__batterySnapshot.language = 'zh';
+    Object.assign(window.__batterySnapshot.runtime, { battery: { percentage: 10, millivolts: 3318, charging: true }, battery_error: null });
+  });
+  await page.getByLabel('电量: 10% · 充电中', { exact: true }).waitFor();
+  await page.screenshot({ path: 'artifacts/battery-settings-zh.png', fullPage: true });
+  await page.getByRole('button', { name: '键位', exact: true }).click();
+  await page.screenshot({ path: 'artifacts/battery-keymap-zh.png', fullPage: true });
+  await page.setViewportSize({ width: 320, height: 568 });
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.getByLabel('电量: 10% · 充电中', { exact: true }).waitFor();
+  await page.screenshot({ path: 'artifacts/battery-compact-zh.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('UI smoke passed: draft, modifiers, no mode selection, save, bilingual, export snapshot, import cancellation, quit cancellation, compact layout, keyboard focus.');
+  console.log('UI smoke passed: mappings, bilingual, export/import, quit, keyboard focus, battery charging/low/unknown/voltage/error/pause states, 320px layout.');
 } finally { await browser.close(); }

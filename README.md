@@ -15,6 +15,7 @@ Use it for push-to-talk, editor commands, media keys, or shortcuts in your favor
 - **Map six controls:** choose a key and combine Ctrl, Shift, Alt, or Super; set unused controls to **No action**.
 - **Hold naturally:** buttons and the knob press follow physical press/release. Rotation sends short key taps.
 - **Edit before applying:** changes stay in a draft until you save; import and export JSON mappings.
+- **Check the battery:** see percentage and charging status in the main window and Settings, with a read every 20 seconds while online and an orange low-battery indicator.
 - **Keep shortcuts available:** closing the window leaves forwarding active. Reopen clanzi to edit, pause, or quit.
 - **Keep configuration local:** mappings, preferences, and diagnostic logs stay on your computer. clanzi does not listen to ordinary keyboard typing.
 

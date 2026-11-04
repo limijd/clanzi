@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, Check, ChevronRight, CircleSlash, Command as CommandIcon, Keyboard, LoaderCircle, Pause, Play, Power, RotateCcw, RotateCw, Search, Settings, ShieldCheck, SlidersHorizontal, Usb, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, Battery as BatteryIcon, BatteryCharging, Check, ChevronRight, CircleSlash, Command as CommandIcon, Keyboard, LoaderCircle, Pause, Play, Power, RotateCcw, RotateCw, Search, Settings, ShieldCheck, SlidersHorizontal, Usb, X } from 'lucide-react';
 import { combo, controls, emptyMap, equalMap, matchingKeys, modifierOrder, replaceBinding, replaceKey, toggleModifier, validateMap, type Action, type Control } from './domain';
 import { chooseImport, exportSaved, getSnapshot, sendCommand, type Command, type Issue, type Model } from './bridge';
 import { text, type Language } from './i18n';
@@ -45,6 +45,16 @@ function App() {
   const action = model.draft.bindings[selected];
   const runtime = model.runtime;
   const status = tr(`status_${runtime.state}`);
+  const battery = runtime.connected && runtime.online === 'online' && !runtime.paused ? runtime.battery : null;
+  const batteryValue = battery?.percentage != null ? `${battery.percentage}%` : battery?.millivolts != null ? `${(battery.millivolts / 1000).toFixed(2)} V` : '—';
+  const batteryText = battery?.charging === true ? `${batteryValue} · ${t.charging}` : batteryValue;
+  const batteryHelp = runtime.paused ? t.batteryPaused : runtime.battery_error ? t.BATTERY_READ_FAILED : !battery ? t.batteryUnavailable : [
+    battery.millivolts != null ? `${(battery.millivolts / 1000).toFixed(3)} V` : '',
+    battery.charging === true ? t.charging : battery.charging === false ? t.notCharging : t.chargingUnknown,
+    runtime.battery_age_ms != null ? t.batteryUpdated.replace('{seconds}', String(Math.floor(runtime.battery_age_ms / 1000))) : '', t.batteryHint,
+  ].filter(Boolean).join(' · ');
+  const batteryLow = battery?.percentage != null && battery.percentage <= 20;
+
   const errorList = [localError, model.error, ...runtime.issues].filter((e): e is Issue => e !== null);
   const update = (next: Action) => {
     const current = modelRef.current!;
@@ -75,7 +85,7 @@ function App() {
   return <div className="app-shell">
     <header className="topbar"><a className="brand" href="#" onClick={e => { e.preventDefault(); setPage('keymap'); }} aria-label="clanzi"><span className="brand-mark"><span/><span/><span/></span>clanzi<span className="platform">LINUX</span></a>
       <nav className="page-nav" aria-label={model.language === 'zh' ? '主导航' : 'Main navigation'}><button onClick={() => setPage('keymap')} aria-current={page === 'keymap' ? 'page' : undefined}><Keyboard size={17}/>{t.keymap}</button><button onClick={() => setPage('settings')} aria-current={page === 'settings' ? 'page' : undefined}><Settings size={17}/>{t.settings}</button></nav>
-      <button className={`status-pill ${runtime.forwarding ? 'active' : ''}`} onClick={() => setPage('settings')}><span className="status-dot"/>{status}<ChevronRight size={13}/></button>
+      <div className="device-status"><span className={`battery-pill ${batteryLow ? 'low' : ''}`} title={batteryHelp} aria-label={`${t.battery}: ${batteryText}`}>{battery?.charging ? <BatteryCharging size={17}/> : <BatteryIcon size={17}/>}<span>{t.battery} {batteryText}</span></span><button className={`status-pill ${runtime.forwarding ? 'active' : ''}`} onClick={() => setPage('settings')}><span className="status-dot"/>{status}<ChevronRight size={13}/></button></div>
     </header>
     {runtime.demo && <div className="demo-banner"><span>{t.demo}</span>{t.demoText}</div>}
     <main>
@@ -103,7 +113,7 @@ function App() {
       </> : <>
         <section className="workspace-heading"><div><div className="eyebrow">clanzi <span>/</span> {t.settings.toUpperCase()}</div><h1>{t.settingsTitle}</h1><p>{t.settingsSubtitle}</p></div><SlidersHorizontal className="settings-glyph" size={30}/></section>
         <div className="settings-grid">
-          <section className="settings-card"><h2><Usb size={19}/>{t.connection}</h2><dl><div><dt>{t.receiver}</dt><dd>{runtime.connected ? t.detected : t.missing}</dd></div><div><dt>{t.device}</dt><dd>{tr(runtime.online)}</dd></div><div><dt>{t.action}</dt><dd className={runtime.forwarding ? 'accent-text' : ''}>{status}</dd></div></dl><div className="button-row"><button className="secondary" onClick={() => send({ type: 'retry' })}><RotateCcw size={15}/>{t.retry}</button><button className="secondary" onClick={() => send({ type: 'pause', paused: !runtime.paused })}>{runtime.paused ? <Play size={15}/> : <Pause size={15}/>} {runtime.paused ? t.resume : t.pause}</button></div><p>{t.pausedHint}</p></section>
+          <section className="settings-card"><h2><Usb size={19}/>{t.connection}</h2><dl><div><dt>{t.receiver}</dt><dd>{runtime.connected ? t.detected : t.missing}</dd></div><div><dt>{t.device}</dt><dd>{tr(runtime.online)}</dd></div><div><dt>{t.battery}</dt><dd className={batteryLow ? 'battery-low' : ''} title={batteryHelp}>{batteryText}</dd></div><div><dt>{t.action}</dt><dd className={runtime.forwarding ? 'accent-text' : ''}>{status}</dd></div></dl><div className="button-row"><button className="secondary" onClick={() => send({ type: 'retry' })}><RotateCcw size={15}/>{t.retry}</button><button className="secondary" onClick={() => send({ type: 'pause', paused: !runtime.paused })}>{runtime.paused ? <Play size={15}/> : <Pause size={15}/>} {runtime.paused ? t.resume : t.pause}</button></div><p className="battery-help">{batteryHelp}</p><p>{t.pausedHint}</p></section>
           <section className="settings-card"><h2><ShieldCheck size={19}/>{t.permissions}</h2><p>{t.permissionsText}</p><p>{t.permissionsHelp}</p></section>
           <section className="settings-card"><h2><Keyboard size={19}/>{t.files}</h2><p>{t.filesHint}</p><div className="button-row"><button className="secondary" disabled={model.saving} onClick={() => void importMap()}><ArrowDownToLine size={16}/>{t.import}</button><button className="secondary" disabled={!model.saved} onClick={() => void exportMap()}><ArrowUpFromLine size={16}/>{t.export}</button></div>{model.dirty && <p className="subtle-warning">{t.exportHint}</p>}</section>
           <section className="settings-card"><h2>{t.language}</h2><p>{t.languageHint}</p><div className="language-toggle">{(['en', 'zh'] as Language[]).map(language => <button key={language} aria-pressed={model.language === language} onClick={() => send({ type: 'language', language })}>{language === 'en' ? 'English' : '简体中文'}{model.language === language && <Check size={15}/>}</button>)}</div></section>

@@ -326,6 +326,10 @@ impl Transport for DemoTransport {
         if command == protocol::QUERY {
             self.replies
                 .push_back(protocol::encode_frame(&[6, 3, 10, 17, 1]).to_vec());
+        } else if command == protocol::BATTERY_QUERY {
+            self.replies.push_back(
+                protocol::encode_frame(&[0x81, 1, 2, 0x11, 0x3c, 0x0f, 80, 0, 0, 0, 0]).to_vec(),
+            );
         }
         Ok(())
     }

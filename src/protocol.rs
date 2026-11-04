@@ -2,6 +2,7 @@ pub const VID: u16 = 0xfff1;
 pub const PID: u16 = 0x00dd;
 pub const REPORT_ID: u8 = 0x55;
 pub const QUERY: &[u8] = &[0x06, 0x03, 0x0a, 0x01];
+pub const BATTERY_QUERY: &[u8] = &[0x01, 0x01, 0x02, 0x01];
 pub const TAKEOVER: &[u8] = &[0x01, 0x01, 0x10, 0x00, 0x03];
 pub const HEARTBEAT: &[u8] = &[0x06, 0x01, 0x23, 0x00, 0x01];
 pub const HAND_BACK: &[u8] = &[0x01, 0x01, 0x10, 0x00, 0x00];
@@ -33,7 +34,7 @@ pub fn tea(block: [u8; 8], decrypt: bool) -> [u8; 8] {
 }
 
 pub fn encode(command: &[u8]) -> Result<[u8; 64], &'static str> {
-    if ![QUERY, TAKEOVER, HEARTBEAT, HAND_BACK].contains(&command) {
+    if ![QUERY, BATTERY_QUERY, TAKEOVER, HEARTBEAT, HAND_BACK].contains(&command) {
         return Err("command not allowed");
     }
     Ok(encode_frame(command))
@@ -64,16 +65,41 @@ pub fn decode(report: &[u8]) -> Result<[u8; 56], &'static str> {
     Ok(plain)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct Battery {
+    pub percentage: Option<u16>,
+    pub millivolts: Option<u16>,
+    pub charging: Option<bool>,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Event {
     Control { index: u8, down: bool },
     Status(Option<bool>),
+    Battery(Battery),
     Other,
 }
 
 pub fn parse(frame: &[u8]) -> Result<Event, &'static str> {
     if frame.len() < 5 {
         return Err("short frame");
+    }
+    if frame[..4] == [0x81, 1, 2, 0x11] {
+        if frame.len() < 11 {
+            return Err("short battery frame");
+        }
+        // Captured AU05 reply: both voltage and percentage are little-endian u16.
+        let voltage = u16::from_le_bytes([frame[4], frame[5]]);
+        let percentage = u16::from_le_bytes([frame[6], frame[7]]);
+        return Ok(Event::Battery(Battery {
+            percentage: (percentage <= 100).then_some(percentage),
+            millivolts: (!matches!(voltage, 0 | 0xffff)).then_some(voltage),
+            charging: match frame[10] {
+                0 => Some(false),
+                1 => Some(true),
+                _ => None,
+            },
+        }));
     }
     if frame[0] & 0x1f == 0x0b && frame[1] == 0x10 {
         if frame[4] > 5 || frame[3] > 1 {

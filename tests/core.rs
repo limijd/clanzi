@@ -172,6 +172,55 @@ fn tea_vector_roundtrip_and_report_boundaries() {
     assert!(protocol::decode(&wrong).is_err());
     assert!(protocol::encode(&[1, 6, 0x50, 4]).is_err());
     assert!(protocol::encode(protocol::HEARTBEAT).is_ok());
+    assert_eq!(protocol::BATTERY_QUERY, [1, 1, 2, 1]);
+    assert!(protocol::encode(protocol::BATTERY_QUERY).is_ok());
+    assert!(protocol::encode(&[1, 1, 2, 0]).is_err());
+}
+
+#[test]
+fn battery_decodes_captured_reply_and_preserves_unknown_fields() {
+    let mut frame = [0x81, 1, 2, 0x11, 0xf6, 0x0c, 10, 0, 0xc8, 1, 1];
+    let report = protocol::encode_frame(&frame);
+    assert_eq!(
+        protocol::parse(&protocol::decode(&report).unwrap()),
+        Ok(Event::Battery(protocol::Battery {
+            percentage: Some(10),
+            millivolts: Some(3318),
+            charging: Some(true),
+        }))
+    );
+    for percentage in [0u16, 100, 101, 256, u16::MAX] {
+        frame[6..8].copy_from_slice(&percentage.to_le_bytes());
+        frame[10] = 2;
+        assert_eq!(
+            protocol::parse(&frame),
+            Ok(Event::Battery(protocol::Battery {
+                percentage: (percentage <= 100).then_some(percentage),
+                millivolts: Some(3318),
+                charging: None,
+            }))
+        );
+    }
+    for voltage in [0u16, u16::MAX] {
+        frame[4..6].copy_from_slice(&voltage.to_le_bytes());
+        frame[10] = 0;
+        assert_eq!(
+            protocol::parse(&frame),
+            Ok(Event::Battery(protocol::Battery {
+                percentage: None,
+                millivolts: None,
+                charging: Some(false),
+            }))
+        );
+    }
+    for length in 0..11 {
+        assert!(protocol::parse(&frame[..length]).is_err());
+    }
+    for index in 0..4 {
+        let mut wrong = frame;
+        wrong[index] = 0;
+        assert_eq!(protocol::parse(&wrong), Ok(Event::Other));
+    }
 }
 
 #[test]
@@ -383,6 +432,8 @@ struct DeviceData {
     connected: bool,
     missing: bool,
     status: Option<u8>,
+    battery_reply: Option<Vec<u8>>,
+    battery_send_fails: bool,
     handover_fails: bool,
     multiple: bool,
 }
@@ -394,6 +445,8 @@ impl Default for DeviceData {
             connected: false,
             missing: false,
             status: Some(1),
+            battery_reply: Some(vec![0x81, 1, 2, 0x11, 0xf6, 0x0c, 10, 0, 0xc8, 1, 1]),
+            battery_send_fails: false,
             handover_fails: false,
             multiple: false,
         }
@@ -426,6 +479,15 @@ impl Transport for FakeDevice {
             return Err(Issue::new("HANDOVER_FAILED", "receiver", "injected"));
         }
         data.commands.push(command.to_vec());
+        if command == protocol::BATTERY_QUERY {
+            if data.battery_send_fails {
+                return Err(Issue::new("DEVICE_BUSY", "battery", "injected"));
+            }
+            if let Some(reply) = data.battery_reply.clone() {
+                data.reports
+                    .push_back(protocol::encode_frame(&reply).to_vec());
+            }
+        }
         if command == protocol::QUERY {
             if let Some(status) = data.status {
                 data.reports
@@ -463,6 +525,122 @@ fn ready(runtime: &mut Runtime) {
     runtime.tick(0);
     runtime.tick(100);
     assert!(runtime.snapshot(100).forwarding);
+}
+
+#[test]
+fn battery_queries_every_twenty_seconds_even_without_a_saved_mapping() {
+    let (mut r, d, _) = runtime(None);
+    let count = || {
+        d.0.lock()
+            .unwrap()
+            .commands
+            .iter()
+            .filter(|c| c.as_slice() == protocol::BATTERY_QUERY)
+            .count()
+    };
+    r.tick(0);
+    assert_eq!(count(), 1);
+    r.tick(100);
+    assert_eq!(r.snapshot(500).battery_age_ms, Some(400));
+    assert_eq!(r.snapshot(500).battery.unwrap().percentage, Some(10));
+    r.tick(19_999);
+    assert_eq!(count(), 1);
+    r.tick(20_000);
+    assert_eq!(count(), 2);
+    r.tick(20_001);
+    assert_eq!(r.snapshot(20_001).battery_age_ms, Some(0));
+}
+
+#[test]
+fn battery_failures_clear_stale_readings_without_interrupting_held_keys() {
+    for send_fails in [false, true] {
+        let (mut r, d, o) = runtime(Some(map()));
+        ready(&mut r);
+        assert!(r.snapshot(100).battery.is_some());
+        edge(&mut r, 0, true, 110);
+        {
+            let mut data = d.0.lock().unwrap();
+            data.battery_reply = None;
+            data.battery_send_fails = send_fails;
+        }
+        r.tick(20_000);
+        r.tick(21_000);
+        let snapshot = r.snapshot(21_000);
+        assert!(snapshot.forwarding);
+        assert!(snapshot.battery.is_none());
+        assert!(snapshot.battery_age_ms.is_none());
+        assert_eq!(snapshot.battery_error.unwrap().code, "BATTERY_READ_FAILED");
+        assert_eq!(o.0.lock().unwrap().events, [(224, true), (4, true)]);
+        edge(&mut r, 0, false, 21_001);
+        assert_eq!(o.0.lock().unwrap().events.len(), 4);
+        {
+            let mut data = d.0.lock().unwrap();
+            data.battery_reply = DeviceData::default().battery_reply;
+            data.battery_send_fails = false;
+        }
+        r.tick(40_000);
+        r.tick(40_001);
+        assert!(r.snapshot(40_001).battery.is_some());
+        assert!(r.snapshot(40_001).battery_error.is_none());
+        assert!(r.snapshot(40_001).forwarding);
+    }
+}
+
+#[test]
+fn battery_is_cleared_on_pause_disconnect_sleep_quit_and_lost_online_status() {
+    for reason in [
+        "pause",
+        "disconnect",
+        "sleep",
+        "quit",
+        "offline",
+        "unknown",
+        "timeout",
+        "retry",
+    ] {
+        let (mut r, d, _) = runtime(Some(map()));
+        ready(&mut r);
+        assert!(r.snapshot(100).battery.is_some());
+        match reason {
+            "pause" => r.pause(true, 110),
+            "disconnect" => {
+                d.0.lock().unwrap().missing = true;
+                r.tick(110);
+            }
+            "sleep" => r.sleep(true, 110),
+            "quit" => r.quit(110),
+            "retry" => r.retry(110),
+            _ => {
+                d.0.lock().unwrap().status = match reason {
+                    "offline" => Some(0),
+                    "unknown" => Some(2),
+                    _ => None,
+                };
+                r.tick(2000);
+                r.tick(3000);
+            }
+        }
+        // Late/passive battery reports cannot resurrect stale readings while unavailable.
+        let report = protocol::encode_frame(&DeviceData::default().battery_reply.unwrap());
+        r.receive(&report, 3100);
+        assert!(r.snapshot(3100).battery.is_none(), "{reason}");
+        assert!(r.snapshot(3100).battery_age_ms.is_none(), "{reason}");
+    }
+}
+
+#[test]
+fn battery_polling_stops_on_pause_and_restarts_on_resume() {
+    let (mut r, d, _) = runtime(Some(map()));
+    ready(&mut r);
+    r.pause(true, 110);
+    let count = d.0.lock().unwrap().commands.len();
+    r.tick(30_000);
+    assert_eq!(d.0.lock().unwrap().commands.len(), count);
+    r.pause(false, 30_001);
+    r.tick(30_001);
+    r.tick(30_002);
+    r.tick(30_003);
+    assert!(r.snapshot(30_003).battery.is_some());
 }
 
 #[test]
@@ -691,7 +869,7 @@ fn first_launch_queries_but_never_takes_over_until_explicit_empty_save() {
         .unwrap()
         .commands
         .iter()
-        .all(|c| c == protocol::QUERY));
+        .all(|c| c == protocol::QUERY || c == protocol::BATTERY_QUERY));
     r.replace(Keymap::default(), 2100);
     r.tick(2100);
     r.tick(2200);
