@@ -88,7 +88,7 @@ make deb
 
 使用 `sudo apt install` 安装 `artifacts/clanzi_<版本>_amd64.deb`，再按上述步骤设置映射。`make deb` 使用仓库清单中的版本号。
 
-运行 `make appimage` 生成 `artifacts/clanzi_<版本>_amd64.AppImage`，并将权限文件复制到 `artifacts/`。首次构建会下载 Tauri CLI 和 AppImage 打包工具。
+运行 `make appimage` 生成 `artifacts/clanzi_<版本>_amd64.AppImage`，并将权限文件复制到 `artifacts/`。Tauri CLI 由 `npm ci` 按锁定版本安装；首次构建 AppImage 时会下载打包工具。
 
 无需硬件体验界面：运行 `npm run dev`，打开 Vite 输出的本机网址。浏览器演示仅在内存保存数据，不发送系统按键。原生开发、隔离演示模式、检查命令和代码目录见[贡献指南](CONTRIBUTING.zh.md)。
 

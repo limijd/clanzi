@@ -16,7 +16,7 @@
 | `make demo` | 使用隔离演示状态的原生 Tauri 窗口 | 不访问真实设备或发送系统按键 |
 | `make dev` | 使用真实后端的原生 Tauri 开发环境 | 可访问 AU05 并发送映射按键 |
 
-原生模式需要桌面显示环境。`make dev` 和 `make demo` 通过 npm 调用 Tauri CLI，首次使用可能需要下载。也可在两个终端分别运行 `npm run dev` 和 `cargo run --manifest-path src-tauri/Cargo.toml -- --demo` 来启动原生演示。
+原生模式需要桌面显示环境。`make dev` 和 `make demo` 使用 `npm ci` 按 `package-lock.json` 锁定版本安装的本地 Tauri CLI。也可在两个终端分别运行 `npm run dev` 和 `cargo run --manifest-path src-tauri/Cargo.toml -- --demo` 来启动原生演示。
 
 真实设备开发时，先安装 `.deb` 配置权限，重新插拔接收器，并在启动开发版本前退出已安装的实例。以普通桌面用户运行，关闭其他 AU05 客户端。关闭窗口后进程仍在运行，请通过设置或托盘退出。
 

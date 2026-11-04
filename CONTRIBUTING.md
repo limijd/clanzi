@@ -16,7 +16,7 @@ Choose the environment that fits your work:
 | `make demo` | Native Tauri window with isolated demo state | No real device access or system keys |
 | `make dev` | Native Tauri development with the real backend | Can access AU05 and send mapped keys |
 
-Native modes require a desktop display. `make dev` and `make demo` invoke the Tauri CLI through npm and may download it on first use. Alternatively, run `npm run dev` and `cargo run --manifest-path src-tauri/Cargo.toml -- --demo` in separate terminals for a native demo.
+Native modes require a desktop display. `make dev` and `make demo` use the local Tauri CLI installed by `npm ci` at the version pinned in `package-lock.json`. Alternatively, run `npm run dev` and `cargo run --manifest-path src-tauri/Cargo.toml -- --demo` in separate terminals for a native demo.
 
 For real-device development, install the `.deb` to configure permissions, reconnect the receiver, and quit the installed instance before starting your development build. Run as a normal desktop user and close other AU05 clients. Closing the window leaves the process running; use Settings or the tray to quit.
 

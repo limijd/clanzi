@@ -88,7 +88,7 @@ make deb
 
 Install `artifacts/clanzi_<version>_amd64.deb` with `sudo apt install`, then follow the first-mapping steps above. `make deb` uses the version in the repository manifests.
 
-Run `make appimage` to build `artifacts/clanzi_<version>_amd64.AppImage` and copy the permission files into `artifacts/`. The first build downloads the Tauri CLI and AppImage bundling tools.
+Run `make appimage` to build `artifacts/clanzi_<version>_amd64.AppImage` and copy the permission files into `artifacts/`. The Tauri CLI is installed at a locked version by `npm ci`; the first AppImage build downloads bundling tools.
 
 To explore the UI without hardware, run `npm run dev` and open the localhost URL printed by Vite. The browser demo stores data in memory and sends no system keys. For native development, isolated demo mode, checks, and the code map, see [Contributing](CONTRIBUTING.md).
 

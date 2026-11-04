@@ -8,6 +8,8 @@ fi
 version=$(node tools/release-version.mjs)
 npm run build
 cargo build --manifest-path src-tauri/Cargo.toml --release --features custom-protocol --locked
+# Package directories and control metadata must be readable after installation.
+umask 022
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT HUP INT TERM
 chmod 0755 "$stage"

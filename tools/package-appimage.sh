@@ -5,6 +5,8 @@ if [ "$(uname -m)" != x86_64 ]; then
   echo 'This package targets Linux x86_64.' >&2
   exit 1
 fi
+# Keep generated bundle directories readable regardless of the caller's umask.
+umask 022
 version=$(node tools/release-version.mjs)
 # Run the bundler's AppImage helpers without requiring a /dev/fuse mount.
 export APPIMAGE_EXTRACT_AND_RUN=1
