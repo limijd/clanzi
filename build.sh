@@ -3,4 +3,4 @@ set -eu
 
 cd "$(dirname "$0")"
 npm ci
-exec make build
+exec make deb

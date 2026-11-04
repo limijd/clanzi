@@ -86,7 +86,7 @@ cargo fetch --manifest-path src-tauri/Cargo.toml --locked
 make deb
 ```
 
-如果只需构建可执行文件，在安装上述构建依赖后运行 `./build.sh`。脚本会执行 `npm ci` 和 `make build`，生成 `src-tauri/target/release/clanzi`。
+在安装上述构建依赖后，可运行 `./build.sh` 一键构建并打包。脚本会执行 `npm ci` 和 `make deb`，生成可执行文件 `src-tauri/target/release/clanzi` 和安装包 `artifacts/clanzi_<版本>_amd64.deb`。
 
 使用 `sudo apt install` 安装 `artifacts/clanzi_<版本>_amd64.deb`，再按上述步骤设置映射。`make deb` 使用仓库清单中的版本号。
 
