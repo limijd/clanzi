@@ -86,6 +86,8 @@ cargo fetch --manifest-path src-tauri/Cargo.toml --locked
 make deb
 ```
 
+To build only the executable, run `./build.sh` after installing the build prerequisites above. The script runs `npm ci` and `make build`, producing `src-tauri/target/release/clanzi`.
+
 Install `artifacts/clanzi_<version>_amd64.deb` with `sudo apt install`, then follow the first-mapping steps above. `make deb` uses the version in the repository manifests.
 
 Run `make appimage` to build `artifacts/clanzi_<version>_amd64.AppImage` and copy the permission files into `artifacts/`. The Tauri CLI is installed at a locked version by `npm ci`; the first AppImage build downloads bundling tools.
