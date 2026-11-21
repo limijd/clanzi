@@ -88,6 +88,8 @@ make deb
 
 To build and package in one step, run `./build.sh` after installing the build prerequisites above. The script runs `npm ci` and `make deb`, producing the executable `src-tauri/target/release/clanzi` and the package `artifacts/clanzi_<version>_amd64.deb`.
 
+After building, run `./install.sh` as your regular desktop user. It installs the application and launcher for your account and uses `sudo` to configure system permissions for the AU05 receiver and virtual keyboard. Enter your password when prompted. Search for **clanzi** in the applications menu or run `~/.local/bin/clanzi`. If the app is already open, retry the connection in Settings. Replug the receiver if needed.
+
 Install `artifacts/clanzi_<version>_amd64.deb` with `sudo apt install`, then follow the first-mapping steps above. `make deb` uses the version in the repository manifests.
 
 Run `make appimage` to build `artifacts/clanzi_<version>_amd64.AppImage` and copy the permission files into `artifacts/`. The Tauri CLI is installed at a locked version by `npm ci`; the first AppImage build downloads bundling tools.

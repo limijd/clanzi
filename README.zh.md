@@ -88,6 +88,8 @@ make deb
 
 在安装上述构建依赖后，可运行 `./build.sh` 一键构建并打包。脚本会执行 `npm ci` 和 `make deb`，生成可执行文件 `src-tauri/target/release/clanzi` 和安装包 `artifacts/clanzi_<版本>_amd64.deb`。
 
+构建后，以普通桌面用户运行 `./install.sh`。脚本为当前用户安装应用和桌面入口，并调用 `sudo` 配置 AU05 接收器和虚拟键盘的系统权限。按提示输入密码即可。在应用菜单中搜索 **clanzi**，或运行 `~/.local/bin/clanzi` 启动。如果应用已打开，在“设置”中点击“重试连接”；必要时重新插拔接收器。
+
 使用 `sudo apt install` 安装 `artifacts/clanzi_<版本>_amd64.deb`，再按上述步骤设置映射。`make deb` 使用仓库清单中的版本号。
 
 运行 `make appimage` 生成 `artifacts/clanzi_<版本>_amd64.AppImage`，并将权限文件复制到 `artifacts/`。Tauri CLI 由 `npm ci` 按锁定版本安装；首次构建 AppImage 时会下载打包工具。
