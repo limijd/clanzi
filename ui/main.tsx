@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, Battery as BatteryIcon, BatteryCharging, Check, ChevronRight, CircleSlash, Command as CommandIcon, Keyboard, LoaderCircle, Pause, Play, Power, RotateCcw, RotateCw, Search, Settings, ShieldCheck, SlidersHorizontal, Usb, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, Battery as BatteryIcon, BatteryCharging, Check, ChevronRight, CircleSlash, Command as CommandIcon, Keyboard, LoaderCircle, LogIn, Pause, Play, Power, RotateCcw, RotateCw, Search, Settings, ShieldCheck, SlidersHorizontal, Usb, X } from 'lucide-react';
 import { combo, controls, emptyMap, equalMap, matchingKeys, modifierOrder, replaceBinding, replaceKey, toggleModifier, validateMap, type Action, type Control } from './domain';
 import { chooseImport, exportSaved, getSnapshot, sendCommand, type Command, type Issue, type Model } from './bridge';
 import { text, type Language } from './i18n';
@@ -117,6 +117,7 @@ function App() {
           <section className="settings-card"><h2><ShieldCheck size={19}/>{t.permissions}</h2><p>{t.permissionsText}</p><p>{t.permissionsHelp}</p></section>
           <section className="settings-card"><h2><Keyboard size={19}/>{t.files}</h2><p>{t.filesHint}</p><div className="button-row"><button className="secondary" disabled={model.saving} onClick={() => void importMap()}><ArrowDownToLine size={16}/>{t.import}</button><button className="secondary" disabled={!model.saved} onClick={() => void exportMap()}><ArrowUpFromLine size={16}/>{t.export}</button></div>{model.dirty && <p className="subtle-warning">{t.exportHint}</p>}</section>
           <section className="settings-card"><h2>{t.language}</h2><p>{t.languageHint}</p><div className="language-toggle">{(['en', 'zh'] as Language[]).map(language => <button key={language} aria-pressed={model.language === language} onClick={() => send({ type: 'language', language })}>{language === 'en' ? 'English' : '简体中文'}{model.language === language && <Check size={15}/>}</button>)}</div></section>
+          <section className="settings-card background-card"><div><h2><LogIn size={19}/>{t.autostart}</h2><p>{t.autostartHint}</p></div><button className="switch" role="switch" aria-checked={model.autostart} aria-label={t.autostart} onClick={() => send({ type: 'autostart', enabled: !model.autostart })}><span className="switch-track"/>{model.autostart ? t.autostartOn : t.autostartOff}</button></section>
           <section className="settings-card background-card"><div><h2>{t.background}</h2><p>{t.backgroundHint}</p></div><button className="danger-button" onClick={() => send({ type: 'request_quit' })}><Power size={16}/>{t.quit}</button></section>
         </div>
       </>}

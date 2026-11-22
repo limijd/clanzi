@@ -54,7 +54,13 @@ try {
   await page.getByText('Battery checks are paused.', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Resume forwarding', exact: true }).click();
   await page.getByLabel('Battery: 80%', { exact: true }).waitFor();
+  const autostart = page.getByRole('switch', { name: 'Start at login', exact: true });
+  assert.equal(await autostart.getAttribute('aria-checked'), 'false');
+  await autostart.click();
+  await waitState(() => document.querySelector('[role=switch]')?.getAttribute('aria-checked') === 'true');
+  assert.equal(await autostart.textContent(), 'On');
   await page.getByRole('button', { name: '简体中文', exact: true }).click();
+  await page.getByRole('switch', { name: '开机自启', exact: true }).waitFor();
   await page.getByRole('button', { name: '键位', exact: true }).waitFor();
   await page.getByRole('button', { name: '键位', exact: true }).click();
   assert((await page.locator('.combination').textContent()).includes('Ctrl+C'));
@@ -94,7 +100,7 @@ try {
   assert(await page.evaluate(() => ['BUTTON', 'INPUT', 'A', 'SUMMARY'].includes(document.activeElement.tagName)));
   // Inject native snapshots to cover telemetry states without hardware access.
   const fixture = {
-    draft: emptyMap(), saved: null, language: 'en', saving: false, dirty: false, quit_prompt: false, exited: false, error: null, notice: null,
+    draft: emptyMap(), saved: null, language: 'en', autostart: false, saving: false, dirty: false, quit_prompt: false, exited: false, error: null, notice: null,
     runtime: { state: 'configuration', connected: true, online: 'online', paused: false, forwarding: false, synchronizing: false, resync_required: false, issues: [], queued: 0, cleanup_pending: false, query_completed_ms: 0, demo: true, battery: null, battery_age_ms: null, battery_error: null },
   };
   await page.addInitScript(snapshot => {
@@ -137,5 +143,5 @@ try {
   await page.getByLabel('电量: 10% · 充电中', { exact: true }).waitFor();
   await page.screenshot({ path: 'artifacts/battery-compact-zh.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('UI smoke passed: mappings, bilingual, export/import, quit, keyboard focus, battery charging/low/unknown/voltage/error/pause states, 320px layout.');
+  console.log('UI smoke passed: mappings, bilingual, autostart toggle, export/import, quit, keyboard focus, battery charging/low/unknown/voltage/error/pause states, 320px layout.');
 } finally { await browser.close(); }

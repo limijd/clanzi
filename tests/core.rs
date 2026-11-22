@@ -4,12 +4,12 @@ use clanzi_core::{
     protocol::{self, Event},
     runtime::{Issue, Output, Runtime, Scheduler, Transport},
     service::{Command, Service},
-    storage::{atomic_write, Store},
+    storage::{atomic_write, autostart_enabled, autostart_entry, set_autostart, Store},
 };
 use std::{
     collections::VecDeque,
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex,
@@ -325,6 +325,40 @@ fn write_failure_leaves_existing_bytes_and_no_temp_files() {
         .any(|e| e.file_name().to_string_lossy().ends_with(".tmp")));
     assert!(Store::new(tmp.0.clone()).save(&map()).is_err());
     assert_eq!(fs::read(destination.join("sentinel")).unwrap(), b"old");
+}
+
+#[test]
+fn autostart_entry_quotes_executable_and_starts_hidden() {
+    let entry = autostart_entry(Path::new("/opt/My Apps/clanzi.AppImage")).unwrap();
+    assert!(entry.starts_with("[Desktop Entry]\nType=Application\n"));
+    assert!(entry.contains("\nExec=\"/opt/My Apps/clanzi.AppImage\" --hidden\n"));
+    let entry = autostart_entry(Path::new(r#"/a"b`c$d\e%f"#)).unwrap();
+    assert!(entry.contains(r#"Exec="/a\\"b\\`c\\$d\\\\e%%f" --hidden"#));
+    assert!(autostart_entry(Path::new("/a\nb")).is_err());
+}
+
+#[test]
+fn autostart_toggle_writes_removes_and_honours_disabled_entries() {
+    let tmp = Temp::new();
+    let path = tmp.0.join("autostart").join("clanzi.desktop");
+    let executable = Path::new("/usr/bin/clanzi");
+    assert!(!autostart_enabled(&path));
+    set_autostart(&path, Some(executable)).unwrap();
+    assert!(autostart_enabled(&path));
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        autostart_entry(executable).unwrap()
+    );
+    fs::write(&path, "[Desktop Entry]\nExec=clanzi\nHidden=true\n").unwrap();
+    assert!(!autostart_enabled(&path));
+    set_autostart(&path, Some(executable)).unwrap();
+    assert!(autostart_enabled(&path));
+    set_autostart(&path, None).unwrap();
+    assert!(!path.exists());
+    set_autostart(&path, None).unwrap();
+    let blocker = tmp.0.join("not-a-directory");
+    fs::write(&blocker, "").unwrap();
+    assert!(set_autostart(&blocker.join("clanzi.desktop"), Some(executable)).is_err());
 }
 
 #[derive(Default)]
@@ -1130,6 +1164,22 @@ fn service_draft_import_save_undo_and_quit() {
     service.command(Command::Undo).unwrap();
     assert_eq!(service.snapshot().draft, map());
     assert!(!service.snapshot().dirty);
+    service.command(Command::RequestQuit).unwrap();
+    wait_for(&service, |m| m.exited);
+}
+
+#[test]
+fn demo_autostart_command_updates_model() {
+    let tmp = Temp::new();
+    let service = Service::start(true, Some(tmp.0.clone()));
+    assert!(!service.snapshot().autostart);
+    let command = serde_json::from_str(r#"{"type":"autostart","enabled":true}"#).unwrap();
+    service.command(command).unwrap();
+    assert!(service.snapshot().autostart);
+    service
+        .command(Command::Autostart { enabled: false })
+        .unwrap();
+    assert!(!service.snapshot().autostart);
     service.command(Command::RequestQuit).unwrap();
     wait_for(&service, |m| m.exited);
 }

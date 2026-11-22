@@ -16,6 +16,14 @@ Editing changes a draft. Imports replace only the draft; exports use the saved c
 
 Six “No action” bindings are valid: saving them enables takeover while discarding the corresponding actions. To stop forwarding, use Pause or Quit. To delete personal data, quit the application before removing its configuration directory.
 
+## Start at login
+
+**Settings → Start at login** is off by default. Turning it on writes the current user's XDG autostart entry `$XDG_CONFIG_HOME/autostart/clanzi.desktop`, or `~/.config/autostart/clanzi.desktop` when XDG is unset or relative; turning it off deletes that file. After you log in to the desktop, the entry starts clanzi with `--hidden`: no window opens, and forwarding starts with the saved mapping once the device and permissions are ready. Open clanzi from the tray or the application menu to show the window.
+
+clanzi starts after desktop login, not at system boot: device permissions belong to the active local session, and the GUI must not run as root.
+
+The entry records the executable path at the moment you turn it on: the AppImage file itself, or the running binary otherwise. After moving or renaming the AppImage, or switching between the `.deb` and `./install.sh` installation, turn the setting off and on again. An entry that the desktop environment disabled with `Hidden=true` is shown as off. Demo mode toggles only in memory and never writes the entry.
+
 ## Button and rotary behavior
 
 The three buttons and knob press forward physical down/up edges immediately. There is no mode selector, minimum duration, or long-press threshold. Repeated down reports are ignored; even down/up reports read in one worker iteration produce both output edges. No application-level repeat timer is added.

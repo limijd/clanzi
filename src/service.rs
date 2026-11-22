@@ -21,6 +21,7 @@ pub struct Model {
     pub draft: Keymap,
     pub saved: Option<Keymap>,
     pub language: String,
+    pub autostart: bool,
     pub saving: bool,
     pub dirty: bool,
     pub quit_prompt: bool,
@@ -38,6 +39,7 @@ pub enum Command {
     Undo,
     Import { content: String, discard: bool },
     Language { language: String },
+    Autostart { enabled: bool },
     Pause { paused: bool },
     Retry,
     Resync,
@@ -93,6 +95,7 @@ impl Service {
             draft: saved.clone().unwrap_or_default(),
             saved,
             language,
+            autostart: !demo && storage::autostart_enabled(&storage::autostart_path()),
             saving: false,
             dirty: false,
             quit_prompt: false,
@@ -198,6 +201,24 @@ impl Service {
                                     Command::Language { language } => {
                                         store.set_language(&language)?;
                                         model.language = language;
+                                    }
+                                    Command::Autostart { enabled } => {
+                                        // 演示模式只在内存中切换，不写入登录自启项。
+                                        if !demo {
+                                            let launcher = if enabled {
+                                                Some(
+                                                    storage::launcher()
+                                                        .map_err(|e| e.to_string())?,
+                                                )
+                                            } else {
+                                                None
+                                            };
+                                            storage::set_autostart(
+                                                &storage::autostart_path(),
+                                                launcher.as_deref(),
+                                            )?;
+                                        }
+                                        model.autostart = enabled;
                                     }
                                     Command::Pause { paused } => runtime.pause(paused, now),
                                     Command::Retry => runtime.retry(now),

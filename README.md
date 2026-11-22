@@ -16,7 +16,7 @@ Use it for push-to-talk, editor commands, media keys, or shortcuts in your favor
 - **Hold naturally:** buttons and the knob press follow physical press/release. Rotation sends short key taps.
 - **Edit before applying:** changes stay in a draft until you save; import and export JSON mappings.
 - **Check the battery:** see percentage and charging status in the main window and Settings, with a read every 20 seconds while online and an orange low-battery indicator.
-- **Keep shortcuts available:** closing the window leaves forwarding active. Reopen clanzi to edit, pause, or quit.
+- **Keep shortcuts available:** closing the window leaves forwarding active. Reopen clanzi to edit, pause, or quit. Turn on **Settings → Start at login** to start forwarding in the background after you log in.
 - **Keep configuration local:** mappings, preferences, and diagnostic logs stay on your computer. clanzi does not listen to ordinary keyboard typing.
 
 clanzi handles keyboard mapping, not voice transcription, firmware updates, lighting, or onboard key tables. It is a community project and is not affiliated with or endorsed by Ulanzi. For the original macOS project and protocol research, see [Olanzi](https://github.com/MrCroxx/olanzi).
@@ -104,9 +104,9 @@ Quit the running instance before updating, then install the newer `.deb` with `s
 sudo apt remove clanzi
 ```
 
-Quit before uninstalling. The package manager removes the packaged permission rules and module-load configuration; your mappings, preferences, and logs remain. See [configuration](docs/configuration.md) for their locations and deletion instructions.
+Quit before uninstalling, and turn off **Start at login** first if you enabled it; the package manager does not remove `~/.config/autostart/clanzi.desktop`. The package manager removes the packaged permission rules and module-load configuration; your mappings, preferences, and logs remain. See [configuration](docs/configuration.md) for their locations and deletion instructions.
 
-For AppImage updates, quit the old instance and run the new file. To uninstall, delete the AppImage; remove manually installed permission files as described in [troubleshooting](docs/troubleshooting.md#appimage-permission-setup).
+For AppImage updates, quit the old instance and run the new file. To uninstall, turn off **Start at login**, then delete the AppImage; remove manually installed permission files as described in [troubleshooting](docs/troubleshooting.md#appimage-permission-setup).
 
 ## Documentation and support
 

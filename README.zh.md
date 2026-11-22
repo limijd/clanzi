@@ -16,7 +16,7 @@ clanzi 是为 **[Ulanzi Vibe Key（AU05）](https://www.ulanzi.com/products/au05
 - **直接跟随按压：**按钮和旋钮按下跟随物理按下／松开，旋转方向发送短按。
 - **先编辑，再生效：**修改保留为草稿，保存后才替换当前映射；支持 JSON 配置导入和导出。
 - **查看设备电量：**主界面和设置页显示百分比与充电状态，在线时每 20 秒自动读取，低电量以橙色提示。
-- **后台持续使用：**关闭窗口仍会转发，重新打开 clanzi 即可编辑、暂停或退出。
+- **后台持续使用：**关闭窗口仍会转发，重新打开 clanzi 即可编辑、暂停或退出。在**设置 → 开机自启**中开启后，登录桌面时自动在后台启动并转发。
 - **配置保存在本机：**映射、偏好和诊断日志留在你的电脑上，不监听普通键盘输入的文本。
 
 clanzi 负责键位映射，不提供语音转写、固件更新、灯光控制或板载键表写入。本项目由社区独立开发，与 Ulanzi 无隶属关系，也未经其背书。原始 macOS 项目与协议研究见 [Olanzi](https://github.com/MrCroxx/olanzi)。
@@ -104,9 +104,9 @@ make deb
 sudo apt remove clanzi
 ```
 
-卸载前请退出 clanzi。包管理器会移除随包安装的权限规则和模块加载配置，保留个人映射、偏好及日志。文件位置和删除方法见[配置说明](docs/configuration.zh.md)。
+卸载前请退出 clanzi；若开启了**开机自启**，请先关闭，包管理器不会删除 `~/.config/autostart/clanzi.desktop`。包管理器会移除随包安装的权限规则和模块加载配置，保留个人映射、偏好及日志。文件位置和删除方法见[配置说明](docs/configuration.zh.md)。
 
-AppImage 更新时先退出旧实例，再运行新文件。卸载时删除 AppImage；手动安装的权限文件按[故障排查](docs/troubleshooting.zh.md#appimage-权限配置)中的说明移除。
+AppImage 更新时先退出旧实例，再运行新文件。卸载时先关闭**开机自启**，再删除 AppImage；手动安装的权限文件按[故障排查](docs/troubleshooting.zh.md#appimage-权限配置)中的说明移除。
 
 ## 文档与支持
 

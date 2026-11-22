@@ -10,14 +10,71 @@ use std::{
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
-pub fn config_dir() -> PathBuf {
-    let base = std::env::var_os("XDG_CONFIG_HOME")
+fn config_home() -> PathBuf {
+    std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
         .unwrap_or_else(|| {
             PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config")
-        });
-    base.join("olanzi-cross-platform")
+        })
+}
+
+pub fn config_dir() -> PathBuf {
+    config_home().join("olanzi-cross-platform")
+}
+
+pub fn autostart_path() -> PathBuf {
+    config_home().join("autostart").join("clanzi.desktop")
+}
+
+/// 桌面环境禁用条目时可能保留文件并写入 `Hidden=true`。
+pub fn autostart_enabled(path: &Path) -> bool {
+    read_limited(path, LIMIT).is_ok_and(|b| {
+        !String::from_utf8_lossy(&b)
+            .lines()
+            .any(|l| l.trim() == "Hidden=true")
+    })
+}
+
+/// AppImage 运行时 current_exe 指向每次启动都会变化的挂载点，需改用 `$APPIMAGE`。
+pub fn launcher() -> io::Result<PathBuf> {
+    match std::env::var_os("APPIMAGE") {
+        Some(path) => Ok(PathBuf::from(path)),
+        None => std::env::current_exe(),
+    }
+}
+
+pub fn autostart_entry(executable: &Path) -> Result<String, String> {
+    let path = executable
+        .to_str()
+        .filter(|p| !p.contains(['\n', '\r']))
+        .ok_or("executable path cannot be written to a desktop entry")?;
+    // Desktop Entry 规范：先做引号内转义，再做字符串值转义，所以反斜杠需要成对加倍。
+    let mut exec = String::from('"');
+    for c in path.chars() {
+        match c {
+            '"' | '`' | '$' => exec.push_str("\\\\"),
+            '\\' => exec.push_str("\\\\\\"),
+            '%' => exec.push('%'),
+            _ => (),
+        }
+        exec.push(c);
+    }
+    exec.push('"');
+    Ok(format!(
+        "[Desktop Entry]\nType=Application\nName=clanzi\nExec={exec} --hidden\nIcon=clanzi\nTerminal=false\n"
+    ))
+}
+
+pub fn set_autostart(path: &Path, executable: Option<&Path>) -> Result<(), String> {
+    match executable {
+        Some(executable) => atomic_write(path, autostart_entry(executable)?.as_bytes()),
+        None => match fs::remove_file(path) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            result => result,
+        },
+    }
+    .map_err(|e| format!("{}: {e}", path.display()))
 }
 
 pub fn read_limited(path: &Path, limit: usize) -> io::Result<Vec<u8>> {

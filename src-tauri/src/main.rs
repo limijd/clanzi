@@ -99,12 +99,18 @@ fn request_quit(app: &tauri::AppHandle) {
 
 fn main() {
     let demo = std::env::args().any(|a| a == "--demo");
+    // 登录自启项带 --hidden：只在后台运行，不弹出窗口。
+    let hidden = std::env::args().any(|a| a == "--hidden");
     let mut context = tauri::generate_context!();
     if demo {
         context.config_mut().identifier.push_str(".demo");
     }
     let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| show(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if !args.iter().any(|a| a == "--hidden") {
+                show(app);
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             snapshot,
@@ -143,6 +149,10 @@ fn main() {
             // 无托盘环境仍保留进程；单实例回调可重新打开窗口。
             if let Err(e) = tray.build(app) {
                 eprintln!("TRAY_UNAVAILABLE: {e}");
+            }
+            // 主窗口在配置中默认隐藏，避免自启时先闪现再隐藏。
+            if !hidden {
+                show(app.handle());
             }
             let handle = app.handle().clone();
             std::thread::spawn(move || {
