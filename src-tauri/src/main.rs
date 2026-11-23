@@ -1,5 +1,6 @@
 use clanzi_core::{
     config::{Keymap, LIMIT},
+    protocol::Battery,
     service::{Command, Model, Service},
     storage::{atomic_write, read_limited, timestamp},
 };
@@ -97,6 +98,19 @@ fn request_quit(app: &tauri::AppHandle) {
     show(app);
 }
 
+fn tray_battery_label(battery: &Battery) -> Option<String> {
+    let value = match (battery.percentage, battery.millivolts) {
+        (Some(percent), _) => format!("{percent}%"),
+        (None, Some(mv)) => format!("{:.2} V", f64::from(mv) / 1000.0),
+        (None, None) => return None,
+    };
+    Some(if battery.charging == Some(true) {
+        format!("⚡ {value}")
+    } else {
+        value
+    })
+}
+
 fn main() {
     let demo = std::env::args().any(|a| a == "--demo");
     // 登录自启项带 --hidden：只在后台运行，不弹出窗口。
@@ -147,9 +161,10 @@ fn main() {
                 tray = tray.icon(icon.clone());
             }
             // 无托盘环境仍保留进程；单实例回调可重新打开窗口。
-            if let Err(e) = tray.build(app) {
-                eprintln!("TRAY_UNAVAILABLE: {e}");
-            }
+            let tray = tray
+                .build(app)
+                .inspect_err(|e| eprintln!("TRAY_UNAVAILABLE: {e}"))
+                .ok();
             // 主窗口在配置中默认隐藏，避免自启时先闪现再隐藏。
             if !hidden {
                 show(app.handle());
@@ -157,6 +172,7 @@ fn main() {
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let mut attention_was_needed = false;
+                let mut last_title = None;
                 loop {
                     std::thread::sleep(Duration::from_millis(200));
                     let state = handle.state::<Desktop>();
@@ -193,7 +209,18 @@ fn main() {
                         (false, "offline") => "Offline or unknown",
                         _ => "Connecting",
                     };
-                    let _ = status.set_text(label);
+                    let title = model.runtime.battery.as_ref().and_then(tray_battery_label);
+                    if let Some(value) = &title {
+                        let battery = if zh { "电量" } else { "Battery" };
+                        let _ = status.set_text(format!("{label} · {battery} {value}"));
+                    } else {
+                        let _ = status.set_text(label);
+                    }
+                    if let Some(tray) = &tray {
+                        if title != last_title && tray.set_title(title.as_deref()).is_ok() {
+                            last_title = title;
+                        }
+                    }
                     let attention_needed = model.quit_prompt
                         || model
                             .error
@@ -223,4 +250,26 @@ fn main() {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tray_battery_uses_reported_values_and_marks_charging() {
+        for (percentage, millivolts, charging, expected) in [
+            (Some(0), Some(3150), None, Some("0%")),
+            (Some(100), Some(4200), Some(true), Some("⚡ 100%")),
+            (None, Some(3912), Some(false), Some("3.91 V")),
+            (None, None, Some(true), None),
+        ] {
+            let battery = Battery {
+                percentage,
+                millivolts,
+                charging,
+            };
+            assert_eq!(tray_battery_label(&battery).as_deref(), expected);
+        }
+    }
 }
